@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android" id="cordova-plugin-mymodbustcp" version="0.0.1">
+   <name>MyModbusTCP</name>
+   <js-module name="MyModbusTCP" src="www/MyModbusTCP.js">
+      <clobbers target="cordova.plugins.MyModbusTCP" />
+   </js-module>
+   <platform name="android">
+      <config-file parent="/*" target="res/xml/config.xml">
+         <feature name="MyModbusTCP">
+            <param name="android-package" value="cordova.plugin.mymodbustcp.MyModbusTCP" />
+         </feature>
+      </config-file>
+      <config-file parent="/*" target="AndroidManifest.xml" />
+      <source-file src="src/android/MyModbusTCP.java" target-dir="src/cordova/plugin/mymodbustcp" />
+	  <framework src="net.wimpi:jamod:1.2" />
+   </platform>
+</plugin>

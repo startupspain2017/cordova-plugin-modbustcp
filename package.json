@@ -1,0 +1,17 @@
+{
+  "name": "cordova-plugin-mymodbustcp",
+  "version": "0.0.1",
+  "description": "ModbusTCP Cordova Plugin",
+  "cordova": {
+    "id": "cordova-plugin-mymodbustcp",
+    "platforms": [
+      "android"
+    ]
+  },
+  "keywords": [
+    "ecosystem:cordova",
+    "cordova-android"
+  ],
+  "author": "forwarded",
+  "license": "ISC"
+}

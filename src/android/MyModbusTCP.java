@@ -36,6 +36,7 @@ public class MyModbusTCP extends CordovaPlugin {
 					String ip = args.getString(0);
 					String offset = args.getString(1);
 					String number = args.getString(2);
+					if (!validateIp(ip, callbackContext)) return;
 					this.readHoldingRegister(ip, offset, number, callbackContext);
 				} catch (Exception e) {
 					callbackContext.error("Thread error: " + e.getLocalizedMessage());
@@ -48,6 +49,7 @@ public class MyModbusTCP extends CordovaPlugin {
 					String ip = args.getString(0);
 					String offset = args.getString(1);
 					String number = args.getString(2);
+					if (!validateIp(ip, callbackContext)) return;
 					this.readCoil(ip, offset, number, callbackContext);
 				} catch (Exception e) {
 					callbackContext.error("Thread error: " + e.getLocalizedMessage());
@@ -60,6 +62,7 @@ public class MyModbusTCP extends CordovaPlugin {
 					String ip = args.getString(0);
 					String offset = args.getString(1);
 					String values = args.getString(2);
+					if (!validateIp(ip, callbackContext)) return;
 					this.writeHoldingRegister(ip, offset, values, callbackContext);
 				} catch (Exception e) {
 					callbackContext.error("Thread error: " + e.getLocalizedMessage());
@@ -72,7 +75,19 @@ public class MyModbusTCP extends CordovaPlugin {
 					String ip = args.getString(0);
 					String offset = args.getString(1);
 					String values = args.getString(2);
+					if (!validateIp(ip, callbackContext)) return;
 					this.writeCoil(ip, offset, values, callbackContext);
+				} catch (Exception e) {
+					callbackContext.error("Thread error: " + e.getLocalizedMessage());
+				}
+			});
+			return true;
+		} else if (action.equals("ping")) {
+			cordova.getThreadPool().execute(() -> {
+				try {
+					String ip = args.getString(0);
+					if (!validateIp(ip, callbackContext)) return;
+					this.ping(ip, callbackContext);
 				} catch (Exception e) {
 					callbackContext.error("Thread error: " + e.getLocalizedMessage());
 				}
@@ -80,6 +95,20 @@ public class MyModbusTCP extends CordovaPlugin {
 			return true;
 		}
 		return false;
+	}
+
+	private boolean validateIp(String ip, CallbackContext callbackContext) {
+		if (ip == null || ip.trim().isEmpty()) {
+			callbackContext.error("IP inválida o vacía");
+			return false;
+		}
+		try {
+			InetAddress.getByName(ip);
+			return true;
+		} catch (Exception e) {
+			callbackContext.error("IP inválida: " + e.getLocalizedMessage());
+			return false;
+		}
 	}
 
 	private void readHoldingRegister(String ip, String offset, String number, CallbackContext callbackContext) {
@@ -300,4 +329,23 @@ public class MyModbusTCP extends CordovaPlugin {
             }
         }
 	}
-}
+	private void ping(String ip, CallbackContext callbackContext) {
+		Socket socket = null;
+		try {
+			InetAddress addr = InetAddress.getByName(ip);
+			SocketAddress socketAddress = new InetSocketAddress(addr, Modbus.DEFAULT_PORT);
+			socket = new Socket();
+			socket.connect(socketAddress, timeout);
+			callbackContext.success("PING OK");
+		} catch (Exception exc) {
+			callbackContext.error("ERROR: " + exc.getLocalizedMessage());
+		} finally {
+			if (socket != null) {
+				try {
+					socket.close();
+				} catch (Exception e) {
+					Log.i("ping","Error closing socket: " + e.getLocalizedMessage());
+				}
+			}
+		}
+	}}

@@ -19,7 +19,7 @@ import net.wimpi.modbus.net.*;
 import net.wimpi.modbus.procimg.*;
 import net.wimpi.modbus.util.*;
 import java.nio.channels.SocketChannel;
-import java.nio.channels.UnresolvedAddressException
+import java.nio.channels.UnresolvedAddressException;
 
 /**
  * This class echoes a string called from JavaScript.

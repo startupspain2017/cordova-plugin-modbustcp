@@ -18,7 +18,8 @@ import net.wimpi.modbus.io.*;
 import net.wimpi.modbus.net.*;
 import net.wimpi.modbus.procimg.*;
 import net.wimpi.modbus.util.*;
-
+import java.nio.channels.SocketChannel;
+import java.nio.channels.UnresolvedAddressException
 
 /**
  * This class echoes a string called from JavaScript.
@@ -98,18 +99,66 @@ public class MyModbusTCP extends CordovaPlugin {
 	}
 
 	private boolean validateIp(String ip, CallbackContext callbackContext) {
+		// 1. Validación de formato
 		if (ip == null || ip.trim().isEmpty()) {
 			callbackContext.error("IP inválida o vacía");
 			return false;
 		}
-		try {
-			InetAddress.getByName(ip);
-			return true;
-		} catch (Exception e) {
-			callbackContext.error("IP inválida: " + e.getLocalizedMessage());
+
+		String trimmed = ip.trim();
+		String[] parts = trimmed.split("\\.");
+		if (parts.length != 4) {
+			callbackContext.error("IP inválida: debe tener 4 octetos");
 			return false;
 		}
+
+		try {
+			for (String part : parts) {
+				int value = Integer.parseInt(part);
+				if (value < 0 || value > 255) {
+					callbackContext.error("IP inválida: octeto fuera de rango (0-255)");
+					return false;
+				}
+			}
+		} catch (NumberFormatException e) {
+			callbackContext.error("IP inválida: contiene caracteres no numéricos");
+			return false;
+		}
+
+		// 2. Comprobación de comunicación con timeout real
+		SocketChannel socketChannel = null;
+		try {
+			InetSocketAddress address = new InetSocketAddress(trimmed, Modbus.DEFAULT_PORT);
+
+			socketChannel = SocketChannel.open();
+			socketChannel.configureBlocking(false);
+			socketChannel.connect(address);
+
+			long start = System.currentTimeMillis();
+			long timeoutMs = 500;
+
+			while (!socketChannel.finishConnect()) {
+				if (System.currentTimeMillis() - start > timeoutMs) {
+					callbackContext.error("IP válida pero sin respuesta (timeout)");
+					return false;
+				}
+				Thread.sleep(10);
+			}
+
+			// Si llega aquí → IP válida y comunicación OK
+			return true;
+
+		} catch (Exception e) {
+			callbackContext.error("IP válida pero sin comunicación: " + e.getLocalizedMessage());
+			return false;
+
+		} finally {
+			try {
+				if (socketChannel != null) socketChannel.close();
+			} catch (Exception ignored) {}
+		}
 	}
+
 
 	private void readHoldingRegister(String ip, String offset, String number, CallbackContext callbackContext) {
 		TCPMasterConnection con = null; // the connection
@@ -328,24 +377,38 @@ public class MyModbusTCP extends CordovaPlugin {
                 }
             }
         }
-	}
+	}	
+
 	private void ping(String ip, CallbackContext callbackContext) {
-		Socket socket = null;
+		SocketChannel socketChannel = null;
+
 		try {
-			InetAddress addr = InetAddress.getByName(ip);
-			SocketAddress socketAddress = new InetSocketAddress(addr, Modbus.DEFAULT_PORT);
-			socket = new Socket();
-			socket.connect(socketAddress, timeout);
-			callbackContext.success("PING OK");
-		} catch (Exception exc) {
-			callbackContext.error("ERROR: " + exc.getLocalizedMessage());
-		} finally {
-			if (socket != null) {
-				try {
-					socket.close();
-				} catch (Exception e) {
-					Log.i("ping","Error closing socket: " + e.getLocalizedMessage());
+			InetSocketAddress address = new InetSocketAddress(ip, Modbus.DEFAULT_PORT);
+
+			socketChannel = SocketChannel.open();
+			socketChannel.configureBlocking(false); // modo no bloqueante
+			socketChannel.connect(address);
+
+			long start = System.currentTimeMillis();
+			long timeoutMs = 500;
+
+			while (!socketChannel.finishConnect()) {
+				if (System.currentTimeMillis() - start > timeoutMs) {
+					callbackContext.error("ERROR: Timeout");
+					return;
 				}
+				Thread.sleep(10);
 			}
+
+			callbackContext.success("PING OK");
+
+		} catch (Exception e) {
+			callbackContext.error("ERROR: " + e.getLocalizedMessage());
+		} finally {
+			try {
+				if (socketChannel != null) socketChannel.close();
+			} catch (Exception ignored) {}
 		}
-	}}
+	}
+
+}

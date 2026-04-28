@@ -126,9 +126,10 @@ public class MyModbusTCP extends CordovaPlugin {
 		}
 
 		// 2. Comprobación de comunicación con timeout real
-		SocketChannel socketChannel = null;
+		// SocketChannel socketChannel = null;
+		Socket socket = null;
 		try {
-			InetSocketAddress address = new InetSocketAddress(trimmed, Modbus.DEFAULT_PORT);
+			/*InetSocketAddress address = new InetSocketAddress(trimmed, Modbus.DEFAULT_PORT);
 
 			socketChannel = SocketChannel.open();
 			socketChannel.configureBlocking(false);
@@ -143,7 +144,12 @@ public class MyModbusTCP extends CordovaPlugin {
 					return false;
 				}
 				Thread.sleep(10);
-			}
+			}*/
+
+			InetAddress addr = InetAddress.getByName(ip);
+			SocketAddress socketAddress = new InetSocketAddress(addr, Modbus.DEFAULT_PORT);
+			socket = new Socket();
+			socket.connect(socketAddress, timeout);
 
 			// Si llega aquí → IP válida y comunicación OK
 			return true;
@@ -153,9 +159,16 @@ public class MyModbusTCP extends CordovaPlugin {
 			return false;
 
 		} finally {
-			try {
+			/*try {
 				if (socketChannel != null) socketChannel.close();
-			} catch (Exception ignored) {}
+			} catch (Exception ignored) {}*/
+			if (socket != null) {
+				try {
+					socket.close();
+				} catch (Exception e) {
+					Log.i("ping","Error closing socket: " + e.getLocalizedMessage());
+				}
+			}
 		}
 	}
 
@@ -377,9 +390,30 @@ public class MyModbusTCP extends CordovaPlugin {
                 }
             }
         }
-	}	
+	}
 
 	private void ping(String ip, CallbackContext callbackContext) {
+		Socket socket = null;
+		try {
+			InetAddress addr = InetAddress.getByName(ip);
+			SocketAddress socketAddress = new InetSocketAddress(addr, Modbus.DEFAULT_PORT);
+			socket = new Socket();
+			socket.connect(socketAddress, timeout);
+			callbackContext.success("PING OK");
+		} catch (Exception exc) {
+			callbackContext.error("ERROR: " + exc.getLocalizedMessage());
+		} finally {
+			if (socket != null) {
+				try {
+					socket.close();
+				} catch (Exception e) {
+					Log.i("ping","Error closing socket: " + e.getLocalizedMessage());
+				}
+			}
+		}
+	}
+
+	private void pingCopilot(String ip, CallbackContext callbackContext) {
 		SocketChannel socketChannel = null;
 
 		try {

@@ -185,17 +185,33 @@ public class MyModbusTCP extends CordovaPlugin {
 			InetAddress addr = InetAddress.getByName(ip);
 			Log.i("ModbusPlugin", "readHoldingRegister() → IP resuelta: " + addr.getHostAddress());
 
-			Log.i("ModbusPlugin", "readHoldingRegister() → Creando conexión JAMOD...");
+			// ------------------------------------------------------------
+			// 🔥 FORZAR IPv4 (solución al ECONNREFUSED desde /::)
+			// ------------------------------------------------------------
+			Log.i("ModbusPlugin", "readHoldingRegister() → Forzando socket IPv4...");
+
+			Socket socket = new Socket();
+			socket.bind(new InetSocketAddress(Inet4Address.getByName("0.0.0.0"), 0));
+
+			Log.i("ModbusPlugin", "readHoldingRegister() → Socket IPv4 creado correctamente");
+
+			// ------------------------------------------------------------
+			// Crear conexión JAMOD usando nuestro socket IPv4
+			// ------------------------------------------------------------
 			con = new TCPMasterConnection(addr);
+			con.setSocket(socket);
 			con.setTimeout(timeout);
 			con.setPort(port);
 
-			Log.i("ModbusPlugin", "readHoldingRegister() → Conectando a " + ip + ":" + port + " con timeout " + timeout + " ms...");
+			Log.i("ModbusPlugin", "readHoldingRegister() → Conectando JAMOD por IPv4 a " + ip + ":" + port + "...");
 			long startConnect = System.currentTimeMillis();
 			con.connect();
 			long elapsedConnect = System.currentTimeMillis() - startConnect;
 			Log.i("ModbusPlugin", "readHoldingRegister() → Conexión establecida en " + elapsedConnect + " ms");
 
+			// ------------------------------------------------------------
+			// Preparar petición
+			// ------------------------------------------------------------
 			Log.i("ModbusPlugin", "readHoldingRegister() → Preparando petición Modbus...");
 			ReadMultipleRegistersRequest reqMultiple = new ReadMultipleRegistersRequest(ref, count);
 
@@ -204,12 +220,18 @@ public class MyModbusTCP extends CordovaPlugin {
 			trans.setRetries(retries);
 			trans.setRequest(reqMultiple);
 
+			// ------------------------------------------------------------
+			// Ejecutar transacción
+			// ------------------------------------------------------------
 			Log.i("ModbusPlugin", "readHoldingRegister() → Ejecutando transacción...");
 			long startTrans = System.currentTimeMillis();
 			trans.execute();
 			long elapsedTrans = System.currentTimeMillis() - startTrans;
 			Log.i("ModbusPlugin", "readHoldingRegister() → Transacción completada en " + elapsedTrans + " ms");
 
+			// ------------------------------------------------------------
+			// Procesar respuesta
+			// ------------------------------------------------------------
 			ReadMultipleRegistersResponse resMultiple = (ReadMultipleRegistersResponse) trans.getResponse();
 
 			Log.i("ModbusPlugin", "readHoldingRegister() → Procesando respuesta...");

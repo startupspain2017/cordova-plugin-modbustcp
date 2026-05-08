@@ -27,8 +27,9 @@ import java.nio.channels.UnresolvedAddressException;
 public class MyModbusTCP extends CordovaPlugin {
 
 	static {
-        System.setProperty("java.net.preferIPv4Stack", "true");
-    }
+		System.setProperty("java.net.preferIPv4Stack", "true");
+		System.setProperty("java.net.preferIPv6Addresses", "false");
+	}
 
 	private int timeout = 500;
 	private int retries = 1;
@@ -170,6 +171,7 @@ public class MyModbusTCP extends CordovaPlugin {
 	}
 
 	private void readHoldingRegister(String ip, String offset, String number, CallbackContext callbackContext) {
+
 		Log.i("ModbusPlugin", "------------------------------------------------------------");
 		Log.i("ModbusPlugin", "readHoldingRegister() → INICIO");
 		Log.i("ModbusPlugin", "IP: " + ip + " | offset: " + offset + " | number: " + number);
@@ -181,29 +183,25 @@ public class MyModbusTCP extends CordovaPlugin {
 			int ref = Integer.parseInt(offset);
 			int count = Integer.parseInt(number);
 
-			Log.i("ModbusPlugin", "readHoldingRegister() → Resolviendo dirección IP...");
-			InetAddress addr = InetAddress.getByName(ip);
-			Log.i("ModbusPlugin", "readHoldingRegister() → IP resuelta: " + addr.getHostAddress());
+			Log.i("ModbusPlugin", "readHoldingRegister() → Resolviendo dirección IPv4...");
+			InetAddress addr = Inet4Address.getByName(ip);
+			Log.i("ModbusPlugin", "readHoldingRegister() → IP resuelta (IPv4): " + addr.getHostAddress());
 
 			// ------------------------------------------------------------
-			// 🔥 FORZAR IPv4 (solución al ECONNREFUSED desde /::)
+			// 🔥 FORZAR IPv4 EN TODA LA JVM
 			// ------------------------------------------------------------
-			Log.i("ModbusPlugin", "readHoldingRegister() → Forzando socket IPv4...");
-
-			Socket socket = new Socket();
-			socket.bind(new InetSocketAddress(Inet4Address.getByName("0.0.0.0"), 0));
-
-			Log.i("ModbusPlugin", "readHoldingRegister() → Socket IPv4 creado correctamente");
+			System.setProperty("java.net.preferIPv4Stack", "true");
+			System.setProperty("java.net.preferIPv6Addresses", "false");
 
 			// ------------------------------------------------------------
-			// Crear conexión JAMOD usando nuestro socket IPv4
+			// Crear conexión JAMOD
 			// ------------------------------------------------------------
+			Log.i("ModbusPlugin", "readHoldingRegister() → Creando conexión JAMOD...");
 			con = new TCPMasterConnection(addr);
-			con.setSocket(socket);
 			con.setTimeout(timeout);
 			con.setPort(port);
 
-			Log.i("ModbusPlugin", "readHoldingRegister() → Conectando JAMOD por IPv4 a " + ip + ":" + port + "...");
+			Log.i("ModbusPlugin", "readHoldingRegister() → Conectando a " + ip + ":" + port + "...");
 			long startConnect = System.currentTimeMillis();
 			con.connect();
 			long elapsedConnect = System.currentTimeMillis() - startConnect;
@@ -244,7 +242,7 @@ public class MyModbusTCP extends CordovaPlugin {
 				myResponse.put(value);
 			}
 
-			Log.i("ModbusPlugin", "readHoldingRegister() → ÉXITO, devolviendo valores al JS");
+			Log.i("ModbusPlugin", "readHoldingRegister() → ÉXITO");
 			callbackContext.success(myResponse);
 
 		} catch (Exception exc) {

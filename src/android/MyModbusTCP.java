@@ -99,8 +99,14 @@ public class MyModbusTCP extends CordovaPlugin {
 	}
 
 	private boolean validateIp(String ip, CallbackContext callbackContext) {
+		Log.i("ModbusPlugin", "*******************************************************************");
+		Log.i("ModbusPlugin", "******************************** INICIO ********************************");
+		Log.i("ModbusPlugin", "*******************************************************************");
+		Log.i("ModbusPlugin", "validateIp() → Iniciando validación para: " + ip);
+
 		// 1. Validación de formato
 		if (ip == null || ip.trim().isEmpty()) {
+			Log.e("ModbusPlugin", "validateIp() → IP vacía o nula");
 			callbackContext.error("IP inválida o vacía");
 			return false;
 		}
@@ -108,6 +114,7 @@ public class MyModbusTCP extends CordovaPlugin {
 		String trimmed = ip.trim();
 		String[] parts = trimmed.split("\\.");
 		if (parts.length != 4) {
+			Log.e("ModbusPlugin", "validateIp() → Formato incorrecto, no tiene 4 octetos");
 			callbackContext.error("IP inválida: debe tener 4 octetos");
 			return false;
 		}
@@ -116,28 +123,45 @@ public class MyModbusTCP extends CordovaPlugin {
 			for (String part : parts) {
 				int value = Integer.parseInt(part);
 				if (value < 0 || value > 255) {
+					Log.e("ModbusPlugin", "validateIp() → Octeto fuera de rango: " + part);
 					callbackContext.error("IP inválida: octeto fuera de rango (0-255)");
 					return false;
 				}
 			}
 		} catch (NumberFormatException e) {
+			Log.e("ModbusPlugin", "validateIp() → Caracter no numérico en IP: " + e.getMessage());
 			callbackContext.error("IP inválida: contiene caracteres no numéricos");
 			return false;
 		}
 
 		// 2. Comprobación de comunicación con timeout real
+		int timeoutMs = timeout; // tu variable global
+		Log.i("ModbusPlugin", "validateIp() → Intentando conectar a " + trimmed + ":" + Modbus.DEFAULT_PORT + " con timeout " + timeoutMs + " ms");
+
+		long start = System.currentTimeMillis();
+
 		try (Socket socket = new Socket()) {
 
 			SocketAddress socketAddress = new InetSocketAddress(trimmed, Modbus.DEFAULT_PORT);
 
-			socket.connect(socketAddress, timeout);
+			socket.connect(socketAddress, timeoutMs);
 
-			// Si llega aquí → IP válida y comunicación OK
+			long elapsed = System.currentTimeMillis() - start;
+			Log.i("ModbusPlugin", "validateIp() → Conexión OK en " + elapsed + " ms");
+
 			return true;
 
 		} catch (Exception e) {
+
+			long elapsed = System.currentTimeMillis() - start;
+			Log.e("ModbusPlugin", "validateIp() → ERROR tras " + elapsed + " ms: " + e.getMessage());
+
 			callbackContext.error("IP válida pero sin comunicación: " + e.getLocalizedMessage());
 			return false;
+		} finally {
+			Log.i("ModbusPlugin", "*******************************************************************");
+			Log.i("ModbusPlugin", "******************************** FIN ********************************");
+			Log.i("ModbusPlugin", "*******************************************************************");
 		}
 	}
 

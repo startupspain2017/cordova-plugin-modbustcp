@@ -126,29 +126,10 @@ public class MyModbusTCP extends CordovaPlugin {
 		}
 
 		// 2. Comprobación de comunicación con timeout real
-		// SocketChannel socketChannel = null;
-		Socket socket = null;
-		try {
-			/*InetSocketAddress address = new InetSocketAddress(trimmed, Modbus.DEFAULT_PORT);
+		try (Socket socket = new Socket()) {
 
-			socketChannel = SocketChannel.open();
-			socketChannel.configureBlocking(false);
-			socketChannel.connect(address);
+			SocketAddress socketAddress = new InetSocketAddress(trimmed, Modbus.DEFAULT_PORT);
 
-			long start = System.currentTimeMillis();
-			long timeoutMs = 500;
-
-			while (!socketChannel.finishConnect()) {
-				if (System.currentTimeMillis() - start > timeoutMs) {
-					callbackContext.error("IP válida pero sin respuesta (timeout)");
-					return false;
-				}
-				Thread.sleep(10);
-			}*/
-
-			InetAddress addr = InetAddress.getByName(ip);
-			SocketAddress socketAddress = new InetSocketAddress(addr, Modbus.DEFAULT_PORT);
-			socket = new Socket();
 			socket.connect(socketAddress, timeout);
 
 			// Si llega aquí → IP válida y comunicación OK
@@ -157,21 +138,8 @@ public class MyModbusTCP extends CordovaPlugin {
 		} catch (Exception e) {
 			callbackContext.error("IP válida pero sin comunicación: " + e.getLocalizedMessage());
 			return false;
-
-		} finally {
-			/*try {
-				if (socketChannel != null) socketChannel.close();
-			} catch (Exception ignored) {}*/
-			if (socket != null) {
-				try {
-					socket.close();
-				} catch (Exception e) {
-					Log.i("ping","Error closing socket: " + e.getLocalizedMessage());
-				}
-			}
 		}
 	}
-
 
 	private void readHoldingRegister(String ip, String offset, String number, CallbackContext callbackContext) {
 		TCPMasterConnection con = null; // the connection
@@ -395,54 +363,27 @@ public class MyModbusTCP extends CordovaPlugin {
 	private void ping(String ip, CallbackContext callbackContext) {
 		Socket socket = null;
 		try {
-			InetAddress addr = InetAddress.getByName(ip);
-			SocketAddress socketAddress = new InetSocketAddress(addr, Modbus.DEFAULT_PORT);
+			SocketAddress socketAddress = new InetSocketAddress(ip, Modbus.DEFAULT_PORT);
+
 			socket = new Socket();
-			socket.connect(socketAddress, timeout);
-			callbackContext.success("PING OK");
+
+			long start = System.currentTimeMillis();
+			socket.connect(socketAddress, timeout); // timeout en ms
+			long elapsed = System.currentTimeMillis() - start;
+
+			callbackContext.success("PING OK (" + elapsed + " ms)");
+
 		} catch (Exception exc) {
 			callbackContext.error("ERROR: " + exc.getLocalizedMessage());
+
 		} finally {
 			if (socket != null) {
 				try {
 					socket.close();
 				} catch (Exception e) {
-					Log.i("ping","Error closing socket: " + e.getLocalizedMessage());
+					Log.i("ping", "Error closing socket: " + e.getLocalizedMessage());
 				}
 			}
 		}
 	}
-
-	private void pingCopilot(String ip, CallbackContext callbackContext) {
-		SocketChannel socketChannel = null;
-
-		try {
-			InetSocketAddress address = new InetSocketAddress(ip, Modbus.DEFAULT_PORT);
-
-			socketChannel = SocketChannel.open();
-			socketChannel.configureBlocking(false); // modo no bloqueante
-			socketChannel.connect(address);
-
-			long start = System.currentTimeMillis();
-			long timeoutMs = 500;
-
-			while (!socketChannel.finishConnect()) {
-				if (System.currentTimeMillis() - start > timeoutMs) {
-					callbackContext.error("ERROR: Timeout");
-					return;
-				}
-				Thread.sleep(10);
-			}
-
-			callbackContext.success("PING OK");
-
-		} catch (Exception e) {
-			callbackContext.error("ERROR: " + e.getLocalizedMessage());
-		} finally {
-			try {
-				if (socketChannel != null) socketChannel.close();
-			} catch (Exception ignored) {}
-		}
-	}
-
 }

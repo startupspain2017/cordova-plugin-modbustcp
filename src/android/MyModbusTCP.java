@@ -26,6 +26,10 @@ import java.nio.channels.UnresolvedAddressException;
  */
 public class MyModbusTCP extends CordovaPlugin {
 
+	static {
+        System.setProperty("java.net.preferIPv4Stack", "true");
+    }
+
 	private int timeout = 500;
 	private int retries = 1;
  

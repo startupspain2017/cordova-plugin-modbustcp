@@ -300,7 +300,11 @@ public class MyModbusTCP extends CordovaPlugin {
             Log.i("ModbusPlugin", "writeHoldingRegister() → Conectando...");
             con.connect();
 
-            WriteSingleRegisterRequest req = new WriteSingleRegisterRequest(ref, new SimpleRegister(val));
+            // *** FIX: SimpleRegister NO existe en JAMOD ***
+            Register register = new Register();
+            register.setValue(val);
+
+            WriteSingleRegisterRequest req = new WriteSingleRegisterRequest(ref, register);
             ModbusTCPTransaction trans = new ModbusTCPTransaction(con);
             trans.setRetries(retries);
             trans.setRequest(req);

@@ -166,58 +166,79 @@ public class MyModbusTCP extends CordovaPlugin {
 	}
 
 	private void readHoldingRegister(String ip, String offset, String number, CallbackContext callbackContext) {
-		TCPMasterConnection con = null; // the connection
-        try {
-			/* The important instances of the classes mentioned before */
-			ModbusTCPTransaction trans = null; // the transaction
-			ReadMultipleRegistersRequest reqMultiple = null; //
-			ReadMultipleRegistersResponse resMultiple = null;
+		Log.i("ModbusPlugin", "------------------------------------------------------------");
+		Log.i("ModbusPlugin", "readHoldingRegister() → INICIO");
+		Log.i("ModbusPlugin", "IP: " + ip + " | offset: " + offset + " | number: " + number);
 
-			/* Variables for storing the parameters */
-			InetAddress addr = null; // the slave's address
+		TCPMasterConnection con = null;
+
+		try {
 			int port = Modbus.DEFAULT_PORT;
-			int ref = Integer.parseInt(offset); // the reference; offset where to start reading from
-			int count = Integer.parseInt(number); // the number of DI's to read
+			int ref = Integer.parseInt(offset);
+			int count = Integer.parseInt(number);
 
-			// 2. Open the connection
-			addr = InetAddress.getByName(ip);
+			Log.i("ModbusPlugin", "readHoldingRegister() → Resolviendo dirección IP...");
+			InetAddress addr = InetAddress.getByName(ip);
+			Log.i("ModbusPlugin", "readHoldingRegister() → IP resuelta: " + addr.getHostAddress());
 
+			Log.i("ModbusPlugin", "readHoldingRegister() → Creando conexión JAMOD...");
 			con = new TCPMasterConnection(addr);
 			con.setTimeout(timeout);
 			con.setPort(port);
+
+			Log.i("ModbusPlugin", "readHoldingRegister() → Conectando a " + ip + ":" + port + " con timeout " + timeout + " ms...");
+			long startConnect = System.currentTimeMillis();
 			con.connect();
+			long elapsedConnect = System.currentTimeMillis() - startConnect;
+			Log.i("ModbusPlugin", "readHoldingRegister() → Conexión establecida en " + elapsedConnect + " ms");
 
-			// 3. Prepare the request
-			reqMultiple = new ReadMultipleRegistersRequest(ref, count);
+			Log.i("ModbusPlugin", "readHoldingRegister() → Preparando petición Modbus...");
+			ReadMultipleRegistersRequest reqMultiple = new ReadMultipleRegistersRequest(ref, count);
 
-			// 4. Prepare the transaction
-			trans = new ModbusTCPTransaction(con);
+			Log.i("ModbusPlugin", "readHoldingRegister() → Creando transacción...");
+			ModbusTCPTransaction trans = new ModbusTCPTransaction(con);
 			trans.setRetries(retries);
 			trans.setRequest(reqMultiple);
 
-			// 5. Execute the transaction
+			Log.i("ModbusPlugin", "readHoldingRegister() → Ejecutando transacción...");
+			long startTrans = System.currentTimeMillis();
 			trans.execute();
-			resMultiple = (ReadMultipleRegistersResponse) trans.getResponse();
+			long elapsedTrans = System.currentTimeMillis() - startTrans;
+			Log.i("ModbusPlugin", "readHoldingRegister() → Transacción completada en " + elapsedTrans + " ms");
 
-			JSONArray myResponse = new JSONArray();
+			ReadMultipleRegistersResponse resMultiple = (ReadMultipleRegistersResponse) trans.getResponse();
+
+			Log.i("ModbusPlugin", "readHoldingRegister() → Procesando respuesta...");
 			Register[] registers = resMultiple.getRegisters();
+			JSONArray myResponse = new JSONArray();
+
 			for (int i = 0; i < registers.length; i++) {
-				myResponse.put(registers[i].getValue());
+				int value = registers[i].getValue();
+				Log.i("ModbusPlugin", "readHoldingRegister() → Registro[" + (ref + i) + "] = " + value);
+				myResponse.put(value);
 			}
 
+			Log.i("ModbusPlugin", "readHoldingRegister() → ÉXITO, devolviendo valores al JS");
 			callbackContext.success(myResponse);
+
 		} catch (Exception exc) {
+			Log.e("ModbusPlugin", "readHoldingRegister() → ERROR: " + exc.getMessage(), exc);
 			callbackContext.error("ERROR: " + exc.getLocalizedMessage());
+
 		} finally {
-            // 6. Close the connection
-            if (con != null) {
-                try {
-                    con.close();
-                } catch (Exception e) {
-                    Log.i("readHoldingRegister","Error closing connection: " + e.getLocalizedMessage());
-                }
-            }
-        }
+			if (con != null) {
+				try {
+					Log.i("ModbusPlugin", "readHoldingRegister() → Cerrando conexión...");
+					con.close();
+					Log.i("ModbusPlugin", "readHoldingRegister() → Conexión cerrada correctamente");
+				} catch (Exception e) {
+					Log.e("ModbusPlugin", "readHoldingRegister() → Error cerrando conexión: " + e.getMessage());
+				}
+			}
+
+			Log.i("ModbusPlugin", "readHoldingRegister() → FIN");
+			Log.i("ModbusPlugin", "------------------------------------------------------------");
+		}
 	}
 
 	private void readCoil(String ip, String offset, String number, CallbackContext callbackContext) {

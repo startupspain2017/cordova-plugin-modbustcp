@@ -18,22 +18,15 @@ import net.wimpi.modbus.io.*;
 import net.wimpi.modbus.net.*;
 import net.wimpi.modbus.procimg.*;
 import net.wimpi.modbus.util.*;
-import java.nio.channels.SocketChannel;
-import java.nio.channels.UnresolvedAddressException;
+
 
 /**
  * This class echoes a string called from JavaScript.
  */
 public class MyModbusTCP extends CordovaPlugin {
 
-	static {
-		System.setProperty("java.net.preferIPv4Stack", "true");
-		System.setProperty("java.net.preferIPv6Addresses", "false");
-	}
-
 	private int timeout = 500;
 	private int retries = 1;
-	public static final int PLC_DELAY_MS = 300;
  
 	@Override
 	public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
@@ -104,179 +97,73 @@ public class MyModbusTCP extends CordovaPlugin {
 		return false;
 	}
 
-	// -------------------------------------------------------------------------
-    // DELAY ENTRE VALIDACIÓN Y MODBUS
-    // -------------------------------------------------------------------------
-    private void safeDelay() {
-        try {
-            Log.i("ModbusPlugin", "safeDelay() → Esperando " + PLC_DELAY_MS + " ms para liberar PLC...");
-            Thread.sleep(PLC_DELAY_MS);
-        } catch (InterruptedException e) {
-            Log.e("ModbusPlugin", "safeDelay() → Interrumpido: " + e.getMessage());
-        }
-    }
-
 	private boolean validateIp(String ip, CallbackContext callbackContext) {
-		Log.i("ModbusPlugin", "*******************************************************************");
-		Log.i("ModbusPlugin", "******************************** INICIO ********************************");
-		Log.i("ModbusPlugin", "*******************************************************************");
-		Log.i("ModbusPlugin", "validateIp() → Iniciando validación para: " + ip);
-
-		// 1. Validación de formato
 		if (ip == null || ip.trim().isEmpty()) {
-			Log.e("ModbusPlugin", "validateIp() → IP vacía o nula");
 			callbackContext.error("IP inválida o vacía");
 			return false;
 		}
-
-		String trimmed = ip.trim();
-		String[] parts = trimmed.split("\\.");
-		if (parts.length != 4) {
-			Log.e("ModbusPlugin", "validateIp() → Formato incorrecto, no tiene 4 octetos");
-			callbackContext.error("IP inválida: debe tener 4 octetos");
-			return false;
-		}
-
 		try {
-			for (String part : parts) {
-				int value = Integer.parseInt(part);
-				if (value < 0 || value > 255) {
-					Log.e("ModbusPlugin", "validateIp() → Octeto fuera de rango: " + part);
-					callbackContext.error("IP inválida: octeto fuera de rango (0-255)");
-					return false;
-				}
-			}
-		} catch (NumberFormatException e) {
-			Log.e("ModbusPlugin", "validateIp() → Caracter no numérico en IP: " + e.getMessage());
-			callbackContext.error("IP inválida: contiene caracteres no numéricos");
-			return false;
-		}
-
-		// 2. Comprobación de comunicación con timeout real
-		int timeoutMs = timeout; // tu variable global
-		Log.i("ModbusPlugin", "validateIp() → Intentando conectar a " + trimmed + ":" + Modbus.DEFAULT_PORT + " con timeout " + timeoutMs + " ms");
-
-		long start = System.currentTimeMillis();
-
-		try (Socket socket = new Socket()) {
-
-			SocketAddress socketAddress = new InetSocketAddress(trimmed, Modbus.DEFAULT_PORT);
-
-			socket.connect(socketAddress, timeoutMs);
-
-			long elapsed = System.currentTimeMillis() - start;
-			Log.i("ModbusPlugin", "validateIp() → Conexión OK en " + elapsed + " ms");
-
+			InetAddress.getByName(ip);
 			return true;
-
 		} catch (Exception e) {
-
-			long elapsed = System.currentTimeMillis() - start;
-			Log.e("ModbusPlugin", "validateIp() → ERROR tras " + elapsed + " ms: " + e.getMessage());
-
-			callbackContext.error("IP válida pero sin comunicación: " + e.getLocalizedMessage());
+			callbackContext.error("IP inválida: " + e.getLocalizedMessage());
 			return false;
-		} finally {
-			Log.i("ModbusPlugin", "*******************************************************************");
-			Log.i("ModbusPlugin", "******************************** FIN ********************************");
-			Log.i("ModbusPlugin", "*******************************************************************");
-			safeDelay();
 		}
 	}
 
 	private void readHoldingRegister(String ip, String offset, String number, CallbackContext callbackContext) {
+		TCPMasterConnection con = null; // the connection
+        try {
+			/* The important instances of the classes mentioned before */
+			ModbusTCPTransaction trans = null; // the transaction
+			ReadMultipleRegistersRequest reqMultiple = null; //
+			ReadMultipleRegistersResponse resMultiple = null;
 
-		Log.i("ModbusPlugin", "------------------------------------------------------------");
-		Log.i("ModbusPlugin", "readHoldingRegister() → INICIO");
-		Log.i("ModbusPlugin", "IP: " + ip + " | offset: " + offset + " | number: " + number);
-
-		TCPMasterConnection con = null;
-
-		try {
+			/* Variables for storing the parameters */
+			InetAddress addr = null; // the slave's address
 			int port = Modbus.DEFAULT_PORT;
-			int ref = Integer.parseInt(offset);
-			int count = Integer.parseInt(number);
+			int ref = Integer.parseInt(offset); // the reference; offset where to start reading from
+			int count = Integer.parseInt(number); // the number of DI's to read
 
-			Log.i("ModbusPlugin", "readHoldingRegister() → Resolviendo dirección IPv4...");
-			InetAddress addr = Inet4Address.getByName(ip);
-			Log.i("ModbusPlugin", "readHoldingRegister() → IP resuelta (IPv4): " + addr.getHostAddress());
+			// 2. Open the connection
+			addr = InetAddress.getByName(ip);
 
-			// ------------------------------------------------------------
-			// 🔥 FORZAR IPv4 EN TODA LA JVM
-			// ------------------------------------------------------------
-			System.setProperty("java.net.preferIPv4Stack", "true");
-			System.setProperty("java.net.preferIPv6Addresses", "false");
-
-			// ------------------------------------------------------------
-			// Crear conexión JAMOD
-			// ------------------------------------------------------------
-			Log.i("ModbusPlugin", "readHoldingRegister() → Creando conexión JAMOD...");
 			con = new TCPMasterConnection(addr);
 			con.setTimeout(timeout);
 			con.setPort(port);
-
-			Log.i("ModbusPlugin", "readHoldingRegister() → Conectando a " + ip + ":" + port + "...");
-			long startConnect = System.currentTimeMillis();
 			con.connect();
-			long elapsedConnect = System.currentTimeMillis() - startConnect;
-			Log.i("ModbusPlugin", "readHoldingRegister() → Conexión establecida en " + elapsedConnect + " ms");
 
-			// ------------------------------------------------------------
-			// Preparar petición
-			// ------------------------------------------------------------
-			Log.i("ModbusPlugin", "readHoldingRegister() → Preparando petición Modbus...");
-			ReadMultipleRegistersRequest reqMultiple = new ReadMultipleRegistersRequest(ref, count);
+			// 3. Prepare the request
+			reqMultiple = new ReadMultipleRegistersRequest(ref, count);
 
-			Log.i("ModbusPlugin", "readHoldingRegister() → Creando transacción...");
-			ModbusTCPTransaction trans = new ModbusTCPTransaction(con);
+			// 4. Prepare the transaction
+			trans = new ModbusTCPTransaction(con);
 			trans.setRetries(retries);
 			trans.setRequest(reqMultiple);
 
-			// ------------------------------------------------------------
-			// Ejecutar transacción
-			// ------------------------------------------------------------
-			Log.i("ModbusPlugin", "readHoldingRegister() → Ejecutando transacción...");
-			long startTrans = System.currentTimeMillis();
+			// 5. Execute the transaction
 			trans.execute();
-			long elapsedTrans = System.currentTimeMillis() - startTrans;
-			Log.i("ModbusPlugin", "readHoldingRegister() → Transacción completada en " + elapsedTrans + " ms");
+			resMultiple = (ReadMultipleRegistersResponse) trans.getResponse();
 
-			// ------------------------------------------------------------
-			// Procesar respuesta
-			// ------------------------------------------------------------
-			ReadMultipleRegistersResponse resMultiple = (ReadMultipleRegistersResponse) trans.getResponse();
-
-			Log.i("ModbusPlugin", "readHoldingRegister() → Procesando respuesta...");
-			Register[] registers = resMultiple.getRegisters();
 			JSONArray myResponse = new JSONArray();
-
+			Register[] registers = resMultiple.getRegisters();
 			for (int i = 0; i < registers.length; i++) {
-				int value = registers[i].getValue();
-				Log.i("ModbusPlugin", "readHoldingRegister() → Registro[" + (ref + i) + "] = " + value);
-				myResponse.put(value);
+				myResponse.put(registers[i].getValue());
 			}
 
-			Log.i("ModbusPlugin", "readHoldingRegister() → ÉXITO");
 			callbackContext.success(myResponse);
-
 		} catch (Exception exc) {
-			Log.e("ModbusPlugin", "readHoldingRegister() → ERROR: " + exc.getMessage(), exc);
 			callbackContext.error("ERROR: " + exc.getLocalizedMessage());
-
 		} finally {
-			if (con != null) {
-				try {
-					Log.i("ModbusPlugin", "readHoldingRegister() → Cerrando conexión...");
-					con.close();
-					Log.i("ModbusPlugin", "readHoldingRegister() → Conexión cerrada correctamente");
-				} catch (Exception e) {
-					Log.e("ModbusPlugin", "readHoldingRegister() → Error cerrando conexión: " + e.getMessage());
-				}
-			}
-			
-			Log.i("ModbusPlugin", "readHoldingRegister() → FIN");
-			Log.i("ModbusPlugin", "------------------------------------------------------------");
-		}
+            // 6. Close the connection
+            if (con != null) {
+                try {
+                    con.close();
+                } catch (Exception e) {
+                    Log.i("readHoldingRegister","Error closing connection: " + e.getLocalizedMessage());
+                }
+            }
+        }
 	}
 
 	private void readCoil(String ip, String offset, String number, CallbackContext callbackContext) {
@@ -442,29 +329,22 @@ public class MyModbusTCP extends CordovaPlugin {
             }
         }
 	}
-
 	private void ping(String ip, CallbackContext callbackContext) {
 		Socket socket = null;
 		try {
-			SocketAddress socketAddress = new InetSocketAddress(ip, Modbus.DEFAULT_PORT);
-
+			InetAddress addr = InetAddress.getByName(ip);
+			SocketAddress socketAddress = new InetSocketAddress(addr, Modbus.DEFAULT_PORT);
 			socket = new Socket();
-
-			long start = System.currentTimeMillis();
-			socket.connect(socketAddress, timeout); // timeout en ms
-			long elapsed = System.currentTimeMillis() - start;
-
-			callbackContext.success("PING OK (" + elapsed + " ms)");
-
+			socket.connect(socketAddress, timeout);
+			callbackContext.success("PING OK");
 		} catch (Exception exc) {
 			callbackContext.error("ERROR: " + exc.getLocalizedMessage());
-
 		} finally {
 			if (socket != null) {
 				try {
 					socket.close();
 				} catch (Exception e) {
-					Log.i("ping", "Error closing socket: " + e.getLocalizedMessage());
+					Log.i("ping","Error closing socket: " + e.getLocalizedMessage());
 				}
 			}
 		}

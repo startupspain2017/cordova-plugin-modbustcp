@@ -33,7 +33,7 @@ public class MyModbusTCP extends CordovaPlugin {
 
 	private int timeout = 500;
 	private int retries = 1;
-	public static final int PLC_DELAY_MS = 600;
+	public static final int PLC_DELAY_MS = 300;
  
 	@Override
 	public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
@@ -274,7 +274,6 @@ public class MyModbusTCP extends CordovaPlugin {
 				}
 			}
 			
-			safeDelay();
 			Log.i("ModbusPlugin", "readHoldingRegister() → FIN");
 			Log.i("ModbusPlugin", "------------------------------------------------------------");
 		}
@@ -333,7 +332,6 @@ public class MyModbusTCP extends CordovaPlugin {
                     Log.i("readCoil","Error closing connection: " + e.getLocalizedMessage());
                 }
             }
-			safeDelay();
         }
 	}
 
@@ -388,7 +386,6 @@ public class MyModbusTCP extends CordovaPlugin {
                     Log.i("writeHoldingRegister","Error closing connection: " + e.getLocalizedMessage());
                 }
             }
-			safeDelay();
         }
 	}
 
@@ -443,7 +440,6 @@ public class MyModbusTCP extends CordovaPlugin {
                     Log.i("writeCoil","Error closing connection: " + e.getLocalizedMessage());
                 }
             }
-			safeDelay();
         }
 	}
 
@@ -471,7 +467,6 @@ public class MyModbusTCP extends CordovaPlugin {
 					Log.i("ping", "Error closing socket: " + e.getLocalizedMessage());
 				}
 			}
-			safeDelay();
 		}
 	}
 }

@@ -11,6 +11,11 @@ import org.json.JSONObject;
 
 import java.net.*;
 import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.io.*;
 import net.wimpi.modbus.*;
 import net.wimpi.modbus.msg.*;
@@ -27,7 +32,32 @@ public class MyModbusTCP extends CordovaPlugin {
 
 	private int timeout = 500;
 	private int retries = 1;
- 
+	// Tiempo máximo de una operación completa (conexión + transacción), en ms
+	private int operationTimeout = 1200;
+	private final ExecutorService modbusExecutor = Executors.newCachedThreadPool();
+
+	// jamod 1.2 abre el socket con new Socket(addr, port), sin límite de tiempo: si el PLC no responde,
+	// connect() puede tardar minutos. La operación se ejecuta en otro hilo y, si no termina a tiempo,
+	// respondemos error a JS sin abrir conexiones extra (el hilo bloqueado acaba solo cuando el sistema corta).
+	// Si la operación responde después, Cordova ignora el segundo callback.
+	private void runWithTimeout(String action, CallbackContext callbackContext, Runnable operation) {
+		Future<?> future = modbusExecutor.submit(operation);
+		try {
+			future.get(operationTimeout, TimeUnit.MILLISECONDS);
+		} catch (TimeoutException e) {
+			future.cancel(true);
+			callbackContext.error("ERROR: timeout " + action + " (" + operationTimeout + " ms)");
+		} catch (Exception e) {
+			callbackContext.error("ERROR: " + e.getLocalizedMessage());
+		}
+	}
+
+	@Override
+	public void onDestroy() {
+		modbusExecutor.shutdownNow();
+		super.onDestroy();
+	}
+
 	@Override
 	public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
 		if (action.equals("readHoldingRegister")) {
@@ -37,7 +67,7 @@ public class MyModbusTCP extends CordovaPlugin {
 					String offset = args.getString(1);
 					String number = args.getString(2);
 					if (!validateIp(ip, callbackContext)) return;
-					this.readHoldingRegister(ip, offset, number, callbackContext);
+					runWithTimeout(action, callbackContext, () -> this.readHoldingRegister(ip, offset, number, callbackContext));
 				} catch (Exception e) {
 					callbackContext.error("Thread error: " + e.getLocalizedMessage());
 				}
@@ -50,7 +80,7 @@ public class MyModbusTCP extends CordovaPlugin {
 					String offset = args.getString(1);
 					String number = args.getString(2);
 					if (!validateIp(ip, callbackContext)) return;
-					this.readCoil(ip, offset, number, callbackContext);
+					runWithTimeout(action, callbackContext, () -> this.readCoil(ip, offset, number, callbackContext));
 				} catch (Exception e) {
 					callbackContext.error("Thread error: " + e.getLocalizedMessage());
 				}
@@ -63,7 +93,7 @@ public class MyModbusTCP extends CordovaPlugin {
 					String offset = args.getString(1);
 					String values = args.getString(2);
 					if (!validateIp(ip, callbackContext)) return;
-					this.writeHoldingRegister(ip, offset, values, callbackContext);
+					runWithTimeout(action, callbackContext, () -> this.writeHoldingRegister(ip, offset, values, callbackContext));
 				} catch (Exception e) {
 					callbackContext.error("Thread error: " + e.getLocalizedMessage());
 				}
@@ -76,7 +106,7 @@ public class MyModbusTCP extends CordovaPlugin {
 					String offset = args.getString(1);
 					String values = args.getString(2);
 					if (!validateIp(ip, callbackContext)) return;
-					this.writeCoil(ip, offset, values, callbackContext);
+					runWithTimeout(action, callbackContext, () -> this.writeCoil(ip, offset, values, callbackContext));
 				} catch (Exception e) {
 					callbackContext.error("Thread error: " + e.getLocalizedMessage());
 				}
